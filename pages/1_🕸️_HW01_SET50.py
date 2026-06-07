@@ -76,6 +76,58 @@ st.markdown(
         background-color: white;
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
+    .insight-card {
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 15px;
+        box-shadow: 0 1px 3px 0 rgba(0,0,0,0.05);
+        border: 1px solid #E5E7EB;
+        border-left: 5px solid;
+    }
+    .insight-card.investor {
+        background-color: #FEF2F2;
+        border-left-color: #EF4444;
+        border-top-color: #FEE2E2;
+        border-right-color: #FEE2E2;
+        border-bottom-color: #FEE2E2;
+    }
+    .insight-card.stock {
+        background-color: #EFF6FF;
+        border-left-color: #3B82F6;
+        border-top-color: #DBEAFE;
+        border-right-color: #DBEAFE;
+        border-bottom-color: #DBEAFE;
+    }
+    .insight-title {
+        font-family: 'Outfit', 'Inter', sans-serif;
+        font-size: 15px;
+        font-weight: 700;
+        margin-bottom: 6px;
+    }
+    .insight-card.investor .insight-title {
+        color: #991B1B;
+    }
+    .insight-card.stock .insight-title {
+        color: #1E40AF;
+    }
+    .insight-entity {
+        font-family: 'Inter', sans-serif;
+        font-size: 14px;
+        font-weight: 600;
+        color: #1F2937;
+        background: rgba(255, 255, 255, 0.75);
+        padding: 4px 8px;
+        border-radius: 4px;
+        display: inline-block;
+        margin-bottom: 8px;
+        border: 1px dashed rgba(0, 0, 0, 0.08);
+    }
+    .insight-desc {
+        font-family: 'Inter', sans-serif;
+        font-size: 13px;
+        color: #4B5563;
+        line-height: 1.5;
+    }
 </style>
 """,
     unsafe_allow_html=True,
@@ -411,10 +463,11 @@ else:
 
     # TAB 4: NETWORK ANALYSIS
     with tab_net:
-        st.subheader("🕸️ Bipartite Shareholder-Stock Network Analysis")
+        st.subheader("🕸️ Shareholder-Stock Network Analysis (SNA)")
         st.markdown(
-            "Using **NetworkX**, we model the relationships between SET50 stocks and their major shareholders as a **Bipartite Network** (or bipartite graph). "
-            "An edge indicates that a shareholder is in the top 5 list of a company."
+            "Using **NetworkX**, we model the relationships between SET50 stocks and their major shareholders. "
+            "We analyze this as a **Bipartite Network** (where edges connect shareholders to stocks) and also "
+            "project it into a **One-Mode Stock-Stock Network** (connecting stocks that share common top investors)."
         )
 
         # Build networkx graph
@@ -430,6 +483,12 @@ else:
             G.add_node(symbol, type="stock")
             G.add_edge(sh_name, symbol, weight=percent)
 
+        # Compute Bipartite Projections
+        from networkx.algorithms import bipartite
+
+        stocks_set = {n for n, d in G.nodes(data=True) if d["type"] == "stock"}
+        G_stock = bipartite.projected_graph(G, stocks_set)
+
         # Network statistics
         num_nodes = G.number_of_nodes()
         num_edges = G.number_of_edges()
@@ -444,11 +503,20 @@ else:
         }
         avg_sh_degree = sum(sh_degrees.values()) / len(sh_degrees) if sh_degrees else 0
 
-        # Metric Cards Layout
+        # Connected Components
+        components = list(nx.connected_components(G))
+        num_components = len(components)
+        largest_comp_size = len(max(components, key=len)) if components else 0
+
+        # Stock-Stock projected metrics
+        stock_density = nx.density(G_stock)
+        stock_transitivity = nx.transitivity(G_stock)
+
+        # Metric Cards Layout - Row 1
         c_net1, c_net2, c_net3, c_net4 = st.columns(4)
         with c_net1:
             st.markdown(
-                f"<div class='metric-card'><div class='metric-value'>{num_nodes}</div><div class='metric-label'>Total Nodes (Stocks + Shareholders)</div></div>",
+                f"<div class='metric-card'><div class='metric-value'>{num_nodes}</div><div class='metric-label'>Total Nodes (Stocks & Investors)</div></div>",
                 unsafe_allow_html=True,
             )
         with c_net2:
@@ -458,22 +526,201 @@ else:
             )
         with c_net3:
             st.markdown(
-                f"<div class='metric-card'><div class='metric-value'>{density:.4f}</div><div class='metric-label'>Network Density</div></div>",
+                f"<div class='metric-card'><div class='metric-value'>{num_components}</div><div class='metric-label'>Connected Components</div></div>",
                 unsafe_allow_html=True,
             )
         with c_net4:
             st.markdown(
-                f"<div class='metric-card'><div class='metric-value'>{avg_sh_degree:.2f}</div><div class='metric-label'>Avg Stocks Per Shareholder</div></div>",
+                f"<div class='metric-card'><div class='metric-value'>{largest_comp_size}</div><div class='metric-label'>Largest Component Size</div></div>",
+                unsafe_allow_html=True,
+            )
+
+        st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
+
+        # Metric Cards Layout - Row 2
+        c_net5, c_net6, c_net7, c_net8 = st.columns(4)
+        with c_net5:
+            st.markdown(
+                f"<div class='metric-card'><div class='metric-value'>{density:.4f}</div><div class='metric-label'>Bipartite Density</div></div>",
+                unsafe_allow_html=True,
+            )
+        with c_net6:
+            st.markdown(
+                f"<div class='metric-card'><div class='metric-value'>{avg_sh_degree:.2f}</div><div class='metric-label'>Avg Stocks Per Investor</div></div>",
+                unsafe_allow_html=True,
+            )
+        with c_net7:
+            st.markdown(
+                f"<div class='metric-card'><div class='metric-value'>{stock_density:.4f}</div><div class='metric-label'>Stock-Stock Proj. Density</div></div>",
+                unsafe_allow_html=True,
+            )
+        with c_net8:
+            st.markdown(
+                f"<div class='metric-card'><div class='metric-value'>{stock_transitivity:.4f}</div><div class='metric-label'>Stock-Stock Transitivity</div></div>",
                 unsafe_allow_html=True,
             )
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # Sub-sections
-        col_viz, col_metrics = st.columns([3, 2])
+        # ----------------------------------------------------
+        # DYNAMIC KEY NETWORK ROLE INSIGHTS
+        # ----------------------------------------------------
+        # Compute centralities
+        deg_cent = nx.degree_centrality(G)
+        between_cent = nx.betweenness_centrality(G)
+        try:
+            eigen_cent = nx.eigenvector_centrality(G, max_iter=2000)
+        except Exception:
+            eigen_cent = {}
 
-        with col_viz:
-            st.markdown("#### Bipartite Network Visualization")
+        # Helper to separate stock/shareholder
+        def get_top_nodes_by_metric(metric_dict, node_type, limit=1):
+            nodes = [n for n in metric_dict if G.nodes[n]["type"] == node_type]
+            sorted_nodes = sorted(nodes, key=lambda x: metric_dict[x], reverse=True)
+            return sorted_nodes[:limit]
+
+        top_sh_deg = get_top_nodes_by_metric(deg_cent, "shareholder", 3)
+        top_stock_deg = get_top_nodes_by_metric(deg_cent, "stock", 3)
+        top_between_sh = get_top_nodes_by_metric(between_cent, "shareholder", 3)
+        top_between_stock = get_top_nodes_by_metric(between_cent, "stock", 3)
+        top_eigen_sh = (
+            get_top_nodes_by_metric(eigen_cent, "shareholder", 3) if eigen_cent else []
+        )
+        top_eigen_stock = (
+            get_top_nodes_by_metric(eigen_cent, "stock", 3) if eigen_cent else []
+        )
+
+        # Helper to format top 3 ranked nodes into HTML
+        def format_top_3_html(nodes_list, detail_fn):
+            html_lines = []
+            medals = ["🥇", "🥈", "🥉"]
+            for rank, node in enumerate(nodes_list[:3]):
+                detail = detail_fn(node)
+                html_lines.append(
+                    f"<div style='margin-bottom: 6px; font-size: 14px; font-family: \"Inter\", sans-serif;'>"
+                    f"{medals[rank]} <strong>{node}</strong> {detail}</div>"
+                )
+            return "".join(html_lines)
+
+        with st.expander(
+            "💡 View Dynamic Network Role & Investment Insights", expanded=True
+        ):
+            col_ins1, col_ins2 = st.columns(2)
+            with col_ins1:
+                st.markdown("#### 🔴 Key Investor Insights")
+                if top_sh_deg:
+                    st.markdown(
+                        f"""
+                        <div class="insight-card investor">
+                            <div class="insight-title">👑 Most Diversified Investors (Top 3)</div>
+                            <div class="insight-desc">
+                                {format_top_3_html(top_sh_deg, lambda n: f"(holds <strong>{G.degree(n)}</strong> stocks)")}
+                                <div style="margin-top: 8px; font-size: 12px; font-style: italic; color: #7f1d1d;">
+                                    These investors hold major stakes in the highest number of unique companies.
+                                </div>
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                if top_between_sh:
+                    st.markdown(
+                        f"""
+                        <div class="insight-card investor">
+                            <div class="insight-title">🌉 Key Connector / Bridge Investors (Top 3)</div>
+                            <div class="insight-desc">
+                                {format_top_3_html(top_between_sh, lambda n: f"(betweenness: <strong>{between_cent[n]:.4f}</strong>)")}
+                                <div style="margin-top: 8px; font-size: 12px; font-style: italic; color: #7f1d1d;">
+                                    These investors act as critical pipelines connecting otherwise separate portfolios.
+                                </div>
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                if top_eigen_sh:
+                    st.markdown(
+                        f"""
+                        <div class="insight-card investor">
+                            <div class="insight-title">⭐ Most Influential Investors (Top 3)</div>
+                            <div class="insight-desc">
+                                {format_top_3_html(top_eigen_sh, lambda n: f"(influence: <strong>{eigen_cent[n]:.4f}</strong>)")}
+                                <div style="margin-top: 8px; font-size: 12px; font-style: italic; color: #7f1d1d;">
+                                    These investors hold stakes in other highly central, influential market entities.
+                                </div>
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+            with col_ins2:
+                st.markdown("#### 🔵 Key Stock Insights")
+                if top_stock_deg:
+                    st.markdown(
+                        f"""
+                        <div class="insight-card stock">
+                            <div class="insight-title">👥 Most Shared Ownership Stocks (Top 3)</div>
+                            <div class="insight-desc">
+                                {format_top_3_html(top_stock_deg, lambda n: f"(has <strong>{G.degree(n)}</strong> major owners)")}
+                                <div style="margin-top: 8px; font-size: 12px; font-style: italic; color: #1e3a8a;">
+                                    These companies exhibit the highest concentration of shared institutional co-investors.
+                                </div>
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                if top_between_stock:
+                    st.markdown(
+                        f"""
+                        <div class="insight-card stock">
+                            <div class="insight-title">🌉 Strategic Bridge Stocks (Top 3)</div>
+                            <div class="insight-desc">
+                                {format_top_3_html(top_between_stock, lambda n: f"(betweenness: <strong>{between_cent[n]:.4f}</strong>)")}
+                                <div style="margin-top: 8px; font-size: 12px; font-style: italic; color: #1e3a8a;">
+                                    These stocks sit at the intersection of diverse investor portfolios across sectors.
+                                </div>
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                if top_eigen_stock:
+                    st.markdown(
+                        f"""
+                        <div class="insight-card stock">
+                            <div class="insight-title">⭐ Core Index Backbone Stocks (Top 3)</div>
+                            <div class="insight-desc">
+                                {format_top_3_html(top_eigen_stock, lambda n: f"(influence: <strong>{eigen_cent[n]:.4f}</strong>)")}
+                                <div style="margin-top: 8px; font-size: 12px; font-style: italic; color: #1e3a8a;">
+                                    These companies are heavily co-owned by highly central, high-wealth institutional groups.
+                                </div>
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+        st.markdown("<hr>", unsafe_allow_html=True)
+
+        # ----------------------------------------------------
+        # NETWORK VISUALIZATIONS SECTION
+        # ----------------------------------------------------
+        # ----------------------------------------------------
+        # NETWORK VISUALIZATIONS SECTION
+        # ----------------------------------------------------
+        st.markdown("#### Interactive Network Visualizations")
+
+        viz_type = st.selectbox(
+            "Select Graph Type to Visualize:",
+            [
+                "Bipartite Shareholder-Stock Graph",
+                "One-Mode Stock-Stock Projection Graph",
+            ],
+        )
+
+        if viz_type == "Bipartite Shareholder-Stock Graph":
             st.markdown(
                 "Use the slider to filter the network degree to see the core structures."
             )
@@ -490,14 +737,17 @@ else:
             filtered_shareholders = [
                 node
                 for node, data in G.nodes(data=True)
-                if data.get("type") == "shareholder" and G.degree(node) >= min_degree
+                if data.get("type") == "shareholder"
+                and G.degree(node) >= min_degree
             ]
 
             filtered_nodes = list(filtered_shareholders) + list(stocks)
             subG = G.subgraph(filtered_nodes).copy()
 
             # Remove isolated nodes to clean up graph
-            isolated_nodes = [node for node in subG.nodes() if subG.degree(node) == 0]
+            isolated_nodes = [
+                node for node in subG.nodes() if subG.degree(node) == 0
+            ]
             subG.remove_nodes_from(isolated_nodes)
 
             if subG.number_of_nodes() == 0:
@@ -603,19 +853,125 @@ else:
                     "🔵 Blue Squares represent Stock Tickers. 🔴 Red Circles represent Major Shareholders. Zoom and drag to explore."
                 )
 
-        with col_metrics:
-            st.markdown("#### Bipartite Network SNA Metrics")
+        else:
+            st.markdown(
+                "This projection connects two stocks if they share at least one common top 5 major shareholder. "
+                "The edge width and color represent the number of shared major shareholders. "
+                "This reveals institutional ownership overlap clusters across industries."
+            )
+
+            # Slider for min weight (shared shareholders)
+            min_shared = st.slider(
+                "Filter Stock Connections by Min Shared Shareholders:",
+                min_value=1,
+                max_value=5,
+                value=1,
+            )
+
+            # Filter G_stock by edge weight
+            subG_stock = nx.Graph()
+            for u, v in G_stock.edges():
+                # Calculate shared shareholders count
+                shared_sh = list(nx.common_neighbors(G, u, v))
+                weight = len(shared_sh)
+                if weight >= min_shared:
+                    subG_stock.add_node(u, type="stock")
+                    subG_stock.add_node(v, type="stock")
+                    subG_stock.add_edge(u, v, weight=weight, shared=shared_sh)
+
+            if subG_stock.number_of_nodes() == 0:
+                st.warning("No stock connections match the filter criteria.")
+            else:
+                pos_stock = nx.spring_layout(
+                    subG_stock, k=0.3, iterations=60, seed=42
+                )
+
+                # Edges trace
+                edge_x = []
+                edge_y = []
+                for u, v, d in subG_stock.edges(data=True):
+                    x0, y0 = pos_stock[u]
+                    x1, y1 = pos_stock[v]
+                    edge_x.extend([x0, x1, None])
+                    edge_y.extend([y0, y1, None])
+
+                edge_trace_stock = go.Scatter(
+                    x=edge_x,
+                    y=edge_y,
+                    line=dict(width=1.5, color="#94A3B8"),
+                    hoverinfo="none",
+                    mode="lines",
+                )
+
+                # Node trace
+                node_x = []
+                node_y = []
+                node_text = []
+                node_color = []
+                node_size = []
+
+                for node in subG_stock.nodes():
+                    x, y = pos_stock[node]
+                    node_x.append(x)
+                    node_y.append(y)
+                    node_text.append(node)
+                    deg = subG_stock.degree(node)
+                    node_color.append(deg)
+                    node_size.append(15)
+
+                node_trace_stock = go.Scatter(
+                    x=node_x,
+                    y=node_y,
+                    mode="markers+text",
+                    text=node_text,
+                    textposition="top center",
+                    hoverinfo="text",
+                    hovertext=[
+                        f"Stock: {node}<br>Connected to {subG_stock.degree(node)} other stock(s)"
+                        for node in node_text
+                    ],
+                    marker=dict(
+                        showscale=True,
+                        colorscale="Viridis",
+                        reversescale=False,
+                        color=node_color,
+                        size=node_size,
+                        colorbar=dict(
+                            thickness=15,
+                            title=dict(text="Overlap Degree", side="right"),
+                            xanchor="left",
+                        ),
+                        line=dict(width=1.5, color="#1E293B"),
+                    ),
+                )
+
+                fig_stock = go.Figure(
+                    data=[edge_trace_stock, node_trace_stock],
+                    layout=go.Layout(
+                        showlegend=False,
+                        hovermode="closest",
+                        margin=dict(b=10, l=5, r=5, t=10),
+                        xaxis=dict(
+                            showgrid=False, zeroline=False, showticklabels=False
+                        ),
+                        yaxis=dict(
+                            showgrid=False, zeroline=False, showticklabels=False
+                        ),
+                        plot_bgcolor="white",
+                        height=550,
+                    ),
+                )
+                st.plotly_chart(fig_stock, use_container_width=True)
+                st.caption(
+                    "Each node is a stock ticker. Edge connects stocks with shared shareholders. Larger/brighter nodes have more sharing relationships."
+                )
+
+        st.markdown("<hr>", unsafe_allow_html=True)
+
+        with st.expander("📊 View Complete Bipartite Network SNA Metrics Table", expanded=False):
             st.markdown(
                 "Network centralities describe the structural properties of each node in the stock market."
             )
-
-            # Compute centralities
-            deg_cent = nx.degree_centrality(G)
-            between_cent = nx.betweenness_centrality(G)
-            try:
-                eigen_cent = nx.eigenvector_centrality(G, max_iter=2000)
-            except Exception:
-                eigen_cent = {}
 
             # Compile DataFrame
             net_df_list = []
