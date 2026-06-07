@@ -2,7 +2,7 @@
 
 This repository contains the homework assignments and projects for the **DADS7201: Social Network Analysis** course.
 
-🔗 **Live Application URL:** [https://summer-sna.streamlit.app/HW01_SET50](https://summer-sna.streamlit.app/HW01_SET50)
+🔗 **Live Application URL:** [https://summer-sna.streamlit.app](https://summer-sna.streamlit.app)
 
 ---
 
